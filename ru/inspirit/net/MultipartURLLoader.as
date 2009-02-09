@@ -22,16 +22,21 @@
 	 * Original idea by Marston Development Studio - http://marstonstudio.com/?p=36
 	 *
 	 * History
-	 * 2009.15.01 version 1.0
+	 * 2009.01.15 version 1.0
 	 * Initial release
 	 *
-	 * 2009.19.01 version 1.1
+	 * 2009.01.19 version 1.1
 	 * Added options for MIME-types (default is application/octet-stream)
 	 *
-	 * 2009.20.01 version 1.2
+	 * 2009.01.20 version 1.2
 	 * Added clearVariables and clearFiles methods
 	 * Small code refactoring
 	 * Public methods documentaion
+	 *
+	 * 2009.02.09 version 1.2.1
+	 * Changed 'useWeakReference' to false (thanx to zlatko)
+	 * It appears that on some servers setting 'useWeakReference' to true
+	 * completely disables this event
 	 *
 	 * @author Eugene Zatepyakin
 	 * @version 1.2
