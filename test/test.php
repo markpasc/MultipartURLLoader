@@ -31,7 +31,7 @@ foreach ($_FILES["Filedata"]["error"] as $key => $error) {
 }
 */
 
-echo "File Received";
+print "result=" . urlencode("File Received");
 exit(0);
 
 ?>
