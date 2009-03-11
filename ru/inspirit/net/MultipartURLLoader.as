@@ -47,6 +47,7 @@
 	 * Added events for asynchronous method.
 	 * Added dataFormat property for returned server data.
 	 * Removed 'Cache-Control' from headers and added custom requestHeaders array property.
+	 * Added getter for the URLLoader class used to send data.
 	 *
 	 * @author Eugene Zatepyakin
 	 * @version 1.3
@@ -255,6 +256,11 @@
 				throw new IllegalOperationError('Illegal URLLoader Data Format');
 			}
 			_loader.dataFormat = format;
+		}
+		
+		public function get loader():URLLoader
+		{
+			return _loader;
 		}
 		
 		private function doSend():void
