@@ -99,7 +99,11 @@
 			_async = async;
 			
 			if (_async) {
-				constructPostDataAsync();
+				if(!_prepared){
+					constructPostDataAsync();
+				} else {
+					doSend();
+				}
 			} else {
 				_data = constructPostData();
 				doSend();
@@ -148,6 +152,7 @@
 				_variableNames.push(name);
 			}
 			_variables[name] = value;
+			_prepared = false;
 		}
 
 		/**
@@ -185,6 +190,7 @@
 		{
 			_variableNames = new Array();
 			_variables = new Dictionary();
+			_prepared = false;
 		}
 
 		/**
