@@ -15,6 +15,8 @@
 	import flash.utils.ByteArray;
 	import flash.utils.Dictionary;
 	import flash.utils.Endian;
+	import flash.utils.setTimeout;
+	import ru.inspirit.net.events.MultipartURLLoaderEvent;
 
 	/**
 	 * Multipart URL Loader
@@ -37,20 +39,40 @@
 	 * Changed 'useWeakReference' to false (thanx to zlatko)
 	 * It appears that on some servers setting 'useWeakReference' to true
 	 * completely disables this event
+	 * 
+	 * 2009.03.05 version 1.3
+	 * Added Async property. Now you can prepare data asynchronous before sending it. 
+	 * It will prevent flash player from freezing while constructing request data.
+	 * You can specify the amount of bytes to write per iteration through BLOCK_SIZE static property.
+	 * Added events for asynchronous method.
+	 * Added dataFormat property for returned server data.
+	 * Removed 'Cache-Control' from headers and added custom requestHeaders array property.
 	 *
 	 * @author Eugene Zatepyakin
-	 * @version 1.2
-	 * @link http://blog.inspirit.ru/?p=139
+	 * @version 1.3
+	 * @link http://blog.inspirit.ru/
 	 */
 	public class  MultipartURLLoader extends EventDispatcher
 	{
-
+		public static var BLOCK_SIZE:uint = 64 * 1024;
+		
 		private var _loader:URLLoader;
 		private var _boundary:String;
 		private var _variableNames:Array;
 		private var _fileNames:Array;
 		private var _variables:Dictionary;
 		private var _files:Dictionary;
+		
+		private var _async:Boolean = false;
+		private var _path:String;
+		private var _data:ByteArray;
+		
+		private var _prepared:Boolean = false;
+		private var asyncFilePointer:uint = 0;
+		private var totalFilesSize:uint = 0;
+		private var writtenBytes:uint = 0;
+		
+		public var requestHeaders:Array;
 
 		public function MultipartURLLoader()
 		{
@@ -59,27 +81,47 @@
 			_variableNames = new Array();
 			_variables = new Dictionary();
 			_loader = new URLLoader();
-			_loader.dataFormat = URLLoaderDataFormat.BINARY;
+			requestHeaders = new Array();
 		}
 
 		/**
 		 * Start uploading data to specified path
 		 *
 		 * @param	path	The server script path
+		 * @param	async	Set to true if you are uploading huge amount of data
 		 */
-		public function load(path:String):void
+		public function load(path:String, async:Boolean = false):void
 		{
-			if (path == null || path == '') throw new IllegalOperationError("You cant load without specifing PATH");
-
-			var urlRequest : URLRequest = new URLRequest();
-			urlRequest.url = path;
-			urlRequest.contentType = 'multipart/form-data; boundary=' + getBoundary();
-			urlRequest.method = URLRequestMethod.POST;
-			urlRequest.data = constructPostData();
-			urlRequest.requestHeaders.push( new URLRequestHeader( 'Cache-Control', 'no-cache' ) );
-
-			addListener();
-			_loader.load(urlRequest);
+			if (path == null || path == '') throw new IllegalOperationError('You cant load without specifing PATH');
+			
+			_path = path;
+			_async = async;
+			
+			if (_async) {
+				constructPostDataAsync();
+			} else {
+				_data = constructPostData();
+				doSend();
+			}
+		}
+		
+		/**
+		 * Start uploading data after async prepare
+		 */
+		public function startLoad():void
+		{
+			if ( _path == null || _path == '' || _async == false ) throw new IllegalOperationError('You can use this method only if loading asynchronous.');
+			if ( !_prepared && _async ) throw new IllegalOperationError('You should prepare data before sending when using asynchronous.');
+			
+			doSend();
+		}
+		
+		/**
+		 * Prepare data before sending (only if you use asynchronous)
+		 */
+		public function prepareData():void
+		{
+			constructPostDataAsync();
 		}
 
 		/**
@@ -87,11 +129,9 @@
 		 */
 		public function close():void
 		{
-			try
-			{
+			try {
 				_loader.close();
-			}
-			catch( e: Error ){ }
+			} catch( e:Error ) { }
 		}
 
 		/**
@@ -123,13 +163,18 @@
 			if (_fileNames.indexOf(fileName) == -1) {
 				_fileNames.push(fileName);
 				_files[fileName] = new FilePart(fileContent, fileName, dataField, contentType);
+				totalFilesSize += fileContent.length;
 			} else {
 				var f:FilePart = _files[fileName] as FilePart;
+				totalFilesSize -= f.fileContent.length;
 				f.fileContent = fileContent;
 				f.fileName = fileName;
 				f.dataField = dataField;
 				f.contentType = contentType;
+				totalFilesSize += fileContent.length;
 			}
+			
+			_prepared = false;
 		}
 
 		/**
@@ -152,6 +197,8 @@
 			}
 			_fileNames = new Array();
 			_files = new Dictionary();
+			totalFilesSize = 0;
+			_prepared = false;
 		}
 
 		/**
@@ -168,6 +215,8 @@
 			_variables = null;
 			_fileNames = null;
 			_files = null;
+			requestHeaders = null;
+			_data = null;
 		}
 
 		/**
@@ -184,6 +233,65 @@
 			}
 			return _boundary;
 		}
+		
+		public function get ASYNC():Boolean
+		{
+			return _async;
+		}
+		
+		public function get PREPARED():Boolean
+		{
+			return _prepared;
+		}
+		
+		public function get dataFormat():String
+		{
+			return _loader.dataFormat;
+		}
+		
+		public function set dataFormat(format:String):void
+		{
+			if (format != URLLoaderDataFormat.BINARY && format != URLLoaderDataFormat.TEXT && format != URLLoaderDataFormat.VARIABLES) {
+				throw new IllegalOperationError('Illegal URLLoader Data Format');
+			}
+			_loader.dataFormat = format;
+		}
+		
+		private function doSend():void
+		{
+			var urlRequest:URLRequest = new URLRequest();
+			urlRequest.url = _path;
+			urlRequest.contentType = 'multipart/form-data; boundary=' + getBoundary();
+			urlRequest.method = URLRequestMethod.POST;
+			urlRequest.data = _data;
+			
+			if (requestHeaders.length && requestHeaders != null){
+				urlRequest.requestHeaders = requestHeaders.concat();
+			}
+			
+			addListener();
+			
+			_loader.load(urlRequest);
+		}
+		
+		private function constructPostDataAsync():void
+		{
+			_data = new ByteArray();
+			_data.endian = Endian.BIG_ENDIAN;
+			
+			_data = constructVariablesPart(_data);
+			
+			asyncFilePointer = 0;
+			writtenBytes = 0;
+			_prepared = false;
+			if (_fileNames.length) {
+				nextAsyncLoop();
+			} else {
+				_data = closeDataObject(_data);
+				_prepared = true;
+				dispatchEvent( new MultipartURLLoaderEvent(MultipartURLLoaderEvent.DATA_PREPARE_COMPLETE) );
+			}
+		}
 
 		private function constructPostData():ByteArray
 		{
@@ -192,10 +300,16 @@
 
 			postData = constructVariablesPart(postData);
 			postData = constructFilesPart(postData);
-
+			
+			postData = closeDataObject(postData);
+			
+			return postData;
+		}
+		
+		private function closeDataObject(postData:ByteArray):ByteArray
+		{
 			postData = BOUNDARY(postData);
 			postData = DOUBLEDASH(postData);
-
 			return postData;
 		}
 
@@ -225,32 +339,44 @@
 		{
 			var i:uint;
 			var bytes:String;
-
+			
 			if(_fileNames.length){
 				for each(var name:String in _fileNames)
 				{
+					postData = getFilePartHeader(postData, _files[name] as FilePart);
 					postData = getFilePartData(postData, _files[name] as FilePart);
+					postData = LINEBREAK(postData);
 				}
-				postData = LINEBREAK(postData);
-				postData = BOUNDARY(postData);
-				postData = LINEBREAK(postData);
-				bytes = 'Content-Disposition: form-data; name="Upload"';
-				for ( i = 0; i < bytes.length; i++ ) {
-					postData.writeByte( bytes.charCodeAt(i) );
-				}
-				postData = LINEBREAK(postData);
-				postData = LINEBREAK(postData);
-				bytes = 'Submit Query';
-				for ( i = 0; i < bytes.length; i++ ) {
-					postData.writeByte( bytes.charCodeAt(i) );
-				}
-				postData = LINEBREAK(postData);
+				postData = closeFilePartsData(postData);
 			}
-
+			
 			return postData;
 		}
-
-		private function getFilePartData(postData:ByteArray, part:FilePart):ByteArray
+		
+		private function closeFilePartsData(postData:ByteArray):ByteArray
+		{
+			var i:uint;
+			var bytes:String;
+			
+			postData = LINEBREAK(postData);
+			postData = BOUNDARY(postData);
+			postData = LINEBREAK(postData);
+			bytes = 'Content-Disposition: form-data; name="Upload"';
+			for ( i = 0; i < bytes.length; i++ ) {
+				postData.writeByte( bytes.charCodeAt(i) );
+			}
+			postData = LINEBREAK(postData);
+			postData = LINEBREAK(postData);
+			bytes = 'Submit Query';
+			for ( i = 0; i < bytes.length; i++ ) {
+				postData.writeByte( bytes.charCodeAt(i) );
+			}
+			postData = LINEBREAK(postData);
+			
+			return postData;
+		}
+		
+		private function getFilePartHeader(postData:ByteArray, part:FilePart):ByteArray
 		{
 			var i:uint;
 			var bytes:String;
@@ -281,9 +407,14 @@
 			}
 			postData = LINEBREAK(postData);
 			postData = LINEBREAK(postData);
-			postData.writeBytes(part.fileContent, 0, part.fileContent.length);
-			postData = LINEBREAK(postData);
+			
+			return postData;
+		}
 
+		private function getFilePartData(postData:ByteArray, part:FilePart):ByteArray
+		{
+			postData.writeBytes(part.fileContent, 0, part.fileContent.length);
+			
 			return postData;
 		}
 
@@ -359,6 +490,50 @@
 		{
 			p.writeShort(0x2d2d);
 			return p;
+		}
+		
+		private function nextAsyncLoop():void
+		{
+			var fp:FilePart;
+			
+			if (asyncFilePointer < _fileNames.length) {
+				
+				fp = _files[_fileNames[asyncFilePointer]] as FilePart;
+				_data = getFilePartHeader(_data, fp);
+				
+				setTimeout(writeChunkLoop, 10, _data, fp.fileContent, 0);
+				
+				asyncFilePointer ++;
+			} else {
+				_data = closeFilePartsData(_data);
+				_data = closeDataObject(_data);
+				
+				_prepared = true;
+				
+				dispatchEvent( new MultipartURLLoaderEvent(MultipartURLLoaderEvent.DATA_PREPARE_PROGRESS, totalFilesSize, totalFilesSize) );
+				dispatchEvent( new MultipartURLLoaderEvent(MultipartURLLoaderEvent.DATA_PREPARE_COMPLETE) );
+			}
+		}
+		
+		private function writeChunkLoop(dest:ByteArray, data:ByteArray, p:uint = 0):void
+		{
+			var len:uint = Math.min(BLOCK_SIZE, data.length - p);
+			dest.writeBytes(data, p, len);
+			
+			if (len < BLOCK_SIZE || p + len >= data.length) {
+				// Finished writing file bytearray
+				dest = LINEBREAK(dest);
+				nextAsyncLoop();
+				return;
+			}
+			
+			p += len;
+			writtenBytes += len;
+			if ( writtenBytes % BLOCK_SIZE * 2 == 0 ) {
+				dispatchEvent( new MultipartURLLoaderEvent(MultipartURLLoaderEvent.DATA_PREPARE_PROGRESS, writtenBytes, totalFilesSize) );
+			}
+			
+			setTimeout(writeChunkLoop, 10, dest, data, p);
 		}
 
 	}
