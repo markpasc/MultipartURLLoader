@@ -16,6 +16,7 @@
 	import flash.utils.Dictionary;
 	import flash.utils.Endian;
 	import flash.utils.setTimeout;
+	import flash.utils.clearInterval;
 	import ru.inspirit.net.events.MultipartURLLoaderEvent;
 
 	/**
@@ -69,6 +70,7 @@
 		private var _data:ByteArray;
 		
 		private var _prepared:Boolean = false;
+		private var asyncWriteTimeoutId:Number;
 		private var asyncFilePointer:uint = 0;
 		private var totalFilesSize:uint = 0;
 		private var writtenBytes:uint = 0;
@@ -213,6 +215,7 @@
 		 */
 		public function dispose(): void
 		{
+			clearInterval(asyncWriteTimeoutId);
 			removeListener();
 			close();
 
@@ -288,6 +291,8 @@
 		
 		private function constructPostDataAsync():void
 		{
+			clearInterval(asyncWriteTimeoutId);
+
 			_data = new ByteArray();
 			_data.endian = Endian.BIG_ENDIAN;
 			
@@ -513,7 +518,7 @@
 				fp = _files[_fileNames[asyncFilePointer]] as FilePart;
 				_data = getFilePartHeader(_data, fp);
 				
-				setTimeout(writeChunkLoop, 10, _data, fp.fileContent, 0);
+				asyncWriteTimeoutId = setTimeout(writeChunkLoop, 10, _data, fp.fileContent, 0);
 				
 				asyncFilePointer ++;
 			} else {
@@ -545,7 +550,7 @@
 				dispatchEvent( new MultipartURLLoaderEvent(MultipartURLLoaderEvent.DATA_PREPARE_PROGRESS, writtenBytes, totalFilesSize) );
 			}
 			
-			setTimeout(writeChunkLoop, 10, dest, data, p);
+			asyncWriteTimeoutId = setTimeout(writeChunkLoop, 10, dest, data, p);
 		}
 
 	}
