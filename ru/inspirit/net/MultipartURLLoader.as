@@ -49,6 +49,10 @@
 	 * Added dataFormat property for returned server data.
 	 * Removed 'Cache-Control' from headers and added custom requestHeaders array property.
 	 * Added getter for the URLLoader class used to send data.
+	 *	
+	 * 2010.02.23
+	 * Fixed issue 2 (loading failed if not directly dispatched from mouse event)
+	 * problem and fix reported by gbradley@rocket.co.uk
 	 *
 	 * @author Eugene Zatepyakin
 	 * @version 1.3
@@ -276,12 +280,15 @@
 		{
 			var urlRequest:URLRequest = new URLRequest();
 			urlRequest.url = _path;
-			urlRequest.contentType = 'multipart/form-data; boundary=' + getBoundary();
+			//urlRequest.contentType = 'multipart/form-data; boundary=' + getBoundary();
 			urlRequest.method = URLRequestMethod.POST;
 			urlRequest.data = _data;
 			
-			if (requestHeaders.length && requestHeaders != null){
-				urlRequest.requestHeaders = requestHeaders.concat();
+			urlRequest.requestHeaders.push( new URLRequestHeader('Content-type', 'multipart/form-data; boundary=' + getBoundary()) );
+			
+			if (requestHeaders.length)
+			{
+				urlRequest.requestHeaders = urlRequest.requestHeaders.concat(requestHeaders);
 			}
 			
 			addListener();
