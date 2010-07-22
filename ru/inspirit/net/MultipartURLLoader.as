@@ -40,16 +40,16 @@
 	 * Changed 'useWeakReference' to false (thanx to zlatko)
 	 * It appears that on some servers setting 'useWeakReference' to true
 	 * completely disables this event
-	 * 
+	 *
 	 * 2009.03.05 version 1.3
-	 * Added Async property. Now you can prepare data asynchronous before sending it. 
+	 * Added Async property. Now you can prepare data asynchronous before sending it.
 	 * It will prevent flash player from freezing while constructing request data.
 	 * You can specify the amount of bytes to write per iteration through BLOCK_SIZE static property.
 	 * Added events for asynchronous method.
 	 * Added dataFormat property for returned server data.
 	 * Removed 'Cache-Control' from headers and added custom requestHeaders array property.
 	 * Added getter for the URLLoader class used to send data.
-	 *	
+	 *
 	 * 2010.02.23
 	 * Fixed issue 2 (loading failed if not directly dispatched from mouse event)
 	 * problem and fix reported by gbradley@rocket.co.uk
@@ -61,24 +61,24 @@
 	public class  MultipartURLLoader extends EventDispatcher
 	{
 		public static var BLOCK_SIZE:uint = 64 * 1024;
-		
+
 		private var _loader:URLLoader;
 		private var _boundary:String;
 		private var _variableNames:Array;
 		private var _fileNames:Array;
 		private var _variables:Dictionary;
 		private var _files:Dictionary;
-		
+
 		private var _async:Boolean = false;
 		private var _path:String;
 		private var _data:ByteArray;
-		
+
 		private var _prepared:Boolean = false;
 		private var asyncWriteTimeoutId:Number;
 		private var asyncFilePointer:uint = 0;
 		private var totalFilesSize:uint = 0;
 		private var writtenBytes:uint = 0;
-		
+
 		public var requestHeaders:Array;
 
 		public function MultipartURLLoader()
@@ -100,10 +100,10 @@
 		public function load(path:String, async:Boolean = false):void
 		{
 			if (path == null || path == '') throw new IllegalOperationError('You cant load without specifing PATH');
-			
+
 			_path = path;
 			_async = async;
-			
+
 			if (_async) {
 				if(!_prepared){
 					constructPostDataAsync();
@@ -115,7 +115,7 @@
 				doSend();
 			}
 		}
-		
+
 		/**
 		 * Start uploading data after async prepare
 		 */
@@ -123,10 +123,10 @@
 		{
 			if ( _path == null || _path == '' || _async == false ) throw new IllegalOperationError('You can use this method only if loading asynchronous.');
 			if ( !_prepared && _async ) throw new IllegalOperationError('You should prepare data before sending when using asynchronous.');
-			
+
 			doSend();
 		}
-		
+
 		/**
 		 * Prepare data before sending (only if you use asynchronous)
 		 */
@@ -185,7 +185,7 @@
 				f.contentType = contentType;
 				totalFilesSize += fileContent.length;
 			}
-			
+
 			_prepared = false;
 		}
 
@@ -247,22 +247,22 @@
 			}
 			return _boundary;
 		}
-		
+
 		public function get ASYNC():Boolean
 		{
 			return _async;
 		}
-		
+
 		public function get PREPARED():Boolean
 		{
 			return _prepared;
 		}
-		
+
 		public function get dataFormat():String
 		{
 			return _loader.dataFormat;
 		}
-		
+
 		public function set dataFormat(format:String):void
 		{
 			if (format != URLLoaderDataFormat.BINARY && format != URLLoaderDataFormat.TEXT && format != URLLoaderDataFormat.VARIABLES) {
@@ -270,12 +270,12 @@
 			}
 			_loader.dataFormat = format;
 		}
-		
+
 		public function get loader():URLLoader
 		{
 			return _loader;
 		}
-		
+
 		private function doSend():void
 		{
 			var urlRequest:URLRequest = new URLRequest();
@@ -283,28 +283,28 @@
 			//urlRequest.contentType = 'multipart/form-data; boundary=' + getBoundary();
 			urlRequest.method = URLRequestMethod.POST;
 			urlRequest.data = _data;
-			
+
 			urlRequest.requestHeaders.push( new URLRequestHeader('Content-type', 'multipart/form-data; boundary=' + getBoundary()) );
-			
+
 			if (requestHeaders.length)
 			{
 				urlRequest.requestHeaders = urlRequest.requestHeaders.concat(requestHeaders);
 			}
-			
+
 			addListener();
-			
+
 			_loader.load(urlRequest);
 		}
-		
+
 		private function constructPostDataAsync():void
 		{
 			clearInterval(asyncWriteTimeoutId);
 
 			_data = new ByteArray();
 			_data.endian = Endian.BIG_ENDIAN;
-			
+
 			_data = constructVariablesPart(_data);
-			
+
 			asyncFilePointer = 0;
 			writtenBytes = 0;
 			_prepared = false;
@@ -324,12 +324,12 @@
 
 			postData = constructVariablesPart(postData);
 			postData = constructFilesPart(postData);
-			
+
 			postData = closeDataObject(postData);
-			
+
 			return postData;
 		}
-		
+
 		private function closeDataObject(postData:ByteArray):ByteArray
 		{
 			postData = BOUNDARY(postData);
@@ -363,25 +363,31 @@
 		{
 			var i:uint;
 			var bytes:String;
-			
+
 			if(_fileNames.length){
 				for each(var name:String in _fileNames)
 				{
 					postData = getFilePartHeader(postData, _files[name] as FilePart);
 					postData = getFilePartData(postData, _files[name] as FilePart);
-					postData = LINEBREAK(postData);
+
+					if (i != _fileNames.length - 1)
+					{
+						postData = LINEBREAK(postData);
+					}
+					i++;
+
 				}
 				postData = closeFilePartsData(postData);
 			}
-			
+
 			return postData;
 		}
-		
+
 		private function closeFilePartsData(postData:ByteArray):ByteArray
 		{
 			var i:uint;
 			var bytes:String;
-			
+
 			postData = LINEBREAK(postData);
 			postData = BOUNDARY(postData);
 			postData = LINEBREAK(postData);
@@ -396,10 +402,10 @@
 				postData.writeByte( bytes.charCodeAt(i) );
 			}
 			postData = LINEBREAK(postData);
-			
+
 			return postData;
 		}
-		
+
 		private function getFilePartHeader(postData:ByteArray, part:FilePart):ByteArray
 		{
 			var i:uint;
@@ -431,14 +437,14 @@
 			}
 			postData = LINEBREAK(postData);
 			postData = LINEBREAK(postData);
-			
+
 			return postData;
 		}
 
 		private function getFilePartData(postData:ByteArray, part:FilePart):ByteArray
 		{
 			postData.writeBytes(part.fileContent, 0, part.fileContent.length);
-			
+
 			return postData;
 		}
 
@@ -515,48 +521,48 @@
 			p.writeShort(0x2d2d);
 			return p;
 		}
-		
+
 		private function nextAsyncLoop():void
 		{
 			var fp:FilePart;
-			
+
 			if (asyncFilePointer < _fileNames.length) {
-				
+
 				fp = _files[_fileNames[asyncFilePointer]] as FilePart;
 				_data = getFilePartHeader(_data, fp);
-				
+
 				asyncWriteTimeoutId = setTimeout(writeChunkLoop, 10, _data, fp.fileContent, 0);
-				
+
 				asyncFilePointer ++;
 			} else {
 				_data = closeFilePartsData(_data);
 				_data = closeDataObject(_data);
-				
+
 				_prepared = true;
-				
+
 				dispatchEvent( new MultipartURLLoaderEvent(MultipartURLLoaderEvent.DATA_PREPARE_PROGRESS, totalFilesSize, totalFilesSize) );
 				dispatchEvent( new MultipartURLLoaderEvent(MultipartURLLoaderEvent.DATA_PREPARE_COMPLETE) );
 			}
 		}
-		
+
 		private function writeChunkLoop(dest:ByteArray, data:ByteArray, p:uint = 0):void
 		{
 			var len:uint = Math.min(BLOCK_SIZE, data.length - p);
 			dest.writeBytes(data, p, len);
-			
+
 			if (len < BLOCK_SIZE || p + len >= data.length) {
 				// Finished writing file bytearray
 				dest = LINEBREAK(dest);
 				nextAsyncLoop();
 				return;
 			}
-			
+
 			p += len;
 			writtenBytes += len;
 			if ( writtenBytes % BLOCK_SIZE * 2 == 0 ) {
 				dispatchEvent( new MultipartURLLoaderEvent(MultipartURLLoaderEvent.DATA_PREPARE_PROGRESS, writtenBytes, totalFilesSize) );
 			}
-			
+
 			asyncWriteTimeoutId = setTimeout(writeChunkLoop, 10, dest, data, p);
 		}
 
