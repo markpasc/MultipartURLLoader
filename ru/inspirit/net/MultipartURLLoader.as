@@ -91,6 +91,18 @@
 			requestHeaders = new Array();
 		}
 
+		public function get bytesLoaded() : uint {
+			return _loader.bytesLoaded;
+		}
+		public function set bytesLoaded(loaded:uint) : void {
+		}
+
+		public function get data() : * {
+			return _loader.data;
+		}
+		public function set data(datas:*) : void {
+		}
+
 		/**
 		 * Start uploading data to specified path
 		 *
