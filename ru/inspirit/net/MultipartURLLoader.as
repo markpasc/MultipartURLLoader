@@ -292,11 +292,12 @@
 		{
 			var urlRequest:URLRequest = new URLRequest();
 			urlRequest.url = _path;
+			// Doing it this way seems to trip flash error #2176 requiring the send to be user-activated
 			//urlRequest.contentType = 'multipart/form-data; boundary=' + getBoundary();
 			urlRequest.method = URLRequestMethod.POST;
 			urlRequest.data = _data;
 
-			urlRequest.requestHeaders.push( new URLRequestHeader('Content-type', 'multipart/form-data; boundary=' + getBoundary()) );
+			urlRequest.requestHeaders.push( new URLRequestHeader('Content-Type', 'multipart/form-data; boundary=' + getBoundary()) );
 
 			if (requestHeaders.length)
 			{
